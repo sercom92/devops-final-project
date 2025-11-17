@@ -1,0 +1,98 @@
+name: Deploy with Environment Promotions
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy-dev:
+    name: Deploy to Dev (automatic)
+    runs-on: self-hosted
+    environment:
+      name: dev
+      url: http://dev.local
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to dev
+        run: |
+          echo "Desplegando en el entorno dev..."
+          kubectl apply -k k8n/overlays/dev
+
+      - name: Wait for rollout
+        run: |
+          echo "Esperando a que termine el despliegue en dev..."
+          kubectl rollout status deployment/dev-webapp \
+          -n dev --timeout=5m
+
+      - name: Verify deployment
+        run: |
+          echo "Verificando el despliegue en dev..."
+          kubectl get pods -n dev -l app=webapp
+          kubectl get svc -n dev
+
+      - name: Deployment complete
+        run: echo "Despliegue en dev finalizado"
+
+  deploy-staging:
+    name: Promote to Staging (manual approval)
+    runs-on: self-hosted
+    needs: deploy-dev
+    environment:
+      name: staging
+      url: http://staging.local
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "Desplegando en el entorno staging..."
+          kubectl apply -k k8n/overlays/staging
+
+      - name: Wait for rollout
+        run: |
+          echo "Esperando a que termine el despliegue..."
+          kubectl rollout status deployment/staging-webapp \
+          -n staging --timeout=5m
+
+      - name: Verify deployment
+        run: |
+          echo "Verificando el despliegue en staging..."
+          kubectl get pods -n staging -l app=webapp
+          kubectl get svc -n staging
+
+      - name: Deployment complete
+        run: echo "Despliegue en staging finalizado"
+
+  deploy-prod:
+    name: Promote to Production (manual approval)
+    runs-on: self-hosted
+    needs: deploy-staging
+    environment:
+      name: prod
+      url: http://prod.local
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to prod
+        run: |
+          echo "Desplegando en el entorno prod..."
+          kubectl apply -k k8n/overlays/prod
+
+      - name: Wait for rollout
+        run: |
+          echo "Esperando a que termine el despliegue..."
+          kubectl rollout status deployment/prod-webapp \
+          -n prod --timeout=5m
+
+      - name: Verify deployment
+        run: |
+          echo "Verificando el despliegue en prod..."
+          kubectl get pods -n prod -l app=webapp
+          kubectl get svc -n prod
+
+      - name: Deployment complete
+        run: echo "Despliegue en prod finalizado"
